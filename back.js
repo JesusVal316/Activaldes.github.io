@@ -73,35 +73,45 @@ document.getElementById("btnParticipar").innerText = "Sorteo cerrado";
 // PARTICIPAR
 async function participarSorteo() {
 
+  const btn = document.getElementById("btnParticipar");
+  btn.disabled = true;
+
   const nombre = document.getElementById("nombreInput").value.trim();
   const whatsapp = document.getElementById("whatsappInput").value.trim();
   const msg = document.getElementById("mensajeSorteo");
 
-  // ⚡ bloqueo inmediato
+  // Esperar fingerprint
+  if (!deviceID) {
+    msg.innerHTML = "⏳ Espera un segundo...";
+    btn.disabled = false;
+    return;
+  }
+
+  // Ya participó
   if (localStorage.getItem("yaParticipaste")) {
     msg.innerHTML = "⚠ Ya participaste desde este dispositivo";
     msg.style.color = "orange";
+    btn.disabled = false;
     return;
   }
 
-  if (!deviceID) {
-    msg.innerHTML = "⏳ Espera un segundo...";
-    return;
-  }
-
+  // Campos vacíos
   if (nombre === "" || whatsapp === "") {
-  msg.innerHTML = "❌ Completa todos los campos";
-  msg.style.color = "red";
-  return;
-}
+    msg.innerHTML = "❌ Completa todos los campos";
+    msg.style.color = "red";
+    btn.disabled = false;
+    return;
+  }
 
-// 📱 Validar WhatsApp MX
-if (!/^[0-9]{10}$/.test(whatsapp)) {
-  msg.innerHTML = "❌ Ingresa un WhatsApp válido (10 dígitos)";
-  msg.style.color = "red";
-  return;
-}
+  // Teléfono inválido
+  if (!/^[0-9]{10}$/.test(whatsapp)) {
+    msg.innerHTML = "❌ Ingresa un WhatsApp válido (10 dígitos)";
+    msg.style.color = "red";
+    btn.disabled = false;
+    return;
+  }
 
+  // Validar dispositivo duplicado
   const existe = await db.collection("participantes")
     .where("deviceID", "==", deviceID)
     .get();
@@ -109,11 +119,12 @@ if (!/^[0-9]{10}$/.test(whatsapp)) {
   if (!existe.empty) {
     msg.innerHTML = "⚠ Ya participaste desde este dispositivo";
     msg.style.color = "orange";
-
     localStorage.setItem("yaParticipaste", "true");
+    btn.disabled = false;
     return;
   }
 
+  // Guardar participante
   await db.collection("participantes").add({
     nombre,
     whatsapp,
@@ -125,7 +136,12 @@ if (!/^[0-9]{10}$/.test(whatsapp)) {
 
   msg.innerHTML = "✅ Participación registrada";
   msg.style.color = "#25D366";
+
+  document.getElementById("nombreInput").value = "";
+  document.getElementById("whatsappInput").value = "";
+
 }
+
 
 
 
