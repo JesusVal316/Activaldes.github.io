@@ -18,6 +18,14 @@
   <meta property="og:type" content="website" />
   <meta property="og:image" content="Actival.jpeg" />
 
+
+  <!-- FIREBASE CDN -->
+   <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="back.js" defer></script>
+
   <style>
     * {
       margin: 0;
@@ -378,6 +386,66 @@
   <p>Escríbenos para activar tu dispositivo de forma rápida y segura.</p>
   <br>
   <h4>WhatsApp: 8180274206</h4>
+</section>
+<section id="sorteo">
+  <h2>SORTEO DE ENERO 🎁</h2><br>
+
+  <div style="max-width:420px;margin:auto;text-align:center;background:#161616;padding:25px;border-radius:12px;">
+
+    <h3>⏳ Tiempo restante</h3>
+    <h2 id="contador" style="color:#00e5ff;margin:15px 0;">Cargando...</h2>
+
+    <input 
+  type="text" 
+  id="nombreInput"
+  placeholder="Tu nombre"
+  style="width:100%;padding:10px;border-radius:8px;border:none;margin-bottom:10px;"
+>
+
+<input 
+  type="tel"
+  id="whatsappInput"
+  placeholder="WhatsApp (10 dígitos)"
+  maxlength="10"
+  inputmode="numeric"
+  oninput="this.value = this.value.replace(/[^0-9]/g,'')"
+  style="width:100%;padding:10px;border-radius:8px;border:none;margin-bottom:15px;"
+>
+
+
+
+    <button 
+    id="btnParticipar"
+      onclick="participarSorteo()"
+      style="padding:12px 20px;border:none;border-radius:8px;background:#00e5ff;color:#000;font-weight:bold;cursor:pointer;width:100%;"
+    >
+      Participar
+    </button>
+
+    <p id="mensajeSorteo" style="margin-top:15px;"></p>
+
+    <hr style="margin:20px 0;border:1px solid #222;">
+
+    <h3>🏆 Ganador</h3>
+    <h2 id="ganador" style="color:#25D366;">Aún no definido</h2>
+
+  </div>
+</section>
+<section id="admin316" style="display:none;padding:60px 20px">
+  <h2 style="text-align:center">Panel Administrador 🔐</h2>
+
+  <div style="background:#111;padding:20px;border-radius:12px;max-width:500px;margin:auto;text-align:center">
+
+    <button 
+      onclick="verGanadorAdmin()"
+      style="padding:10px 20px;border:none;border-radius:8px;background:#25D366;color:#000;font-weight:bold;cursor:pointer"
+    >
+      Ver ganador completo
+    </button>
+
+    <pre id="adminData" style="margin-top:15px;color:#00e5ff;text-align:left"></pre>
+
+  </div>
 </section>
 
 <footer>
