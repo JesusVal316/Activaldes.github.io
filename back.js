@@ -66,27 +66,41 @@ const intervalo = setInterval(() => {
 // ================================
 // 🚀 LOAD PRINCIPAL
 // ================================
-
 window.addEventListener("load", async () => {
 
   const btn = document.getElementById("btnParticipar");
   btn.disabled = true;
 
-  // Fingerprint load
-  const fp = await FingerprintJS.load();
-  const result = await fp.get();
-  deviceID = result.visitorId;
+  try {
 
-  console.log("DeviceID listo:", deviceID);
+    const fp = await FingerprintJS.load();
+    const result = await fp.get();
+    deviceID = result.visitorId;
+
+    console.log("Fingerprint OK:", deviceID);
+
+  } catch (error) {
+
+    console.warn("Fingerprint falló, usando fallback");
+
+    // Fallback local
+    deviceID = localStorage.getItem("deviceFallback");
+
+    if (!deviceID) {
+      deviceID = "fallback_" + crypto.randomUUID();
+      localStorage.setItem("deviceFallback", deviceID);
+    }
+
+  }
 
   btn.disabled = false;
 
-  // Panel admin
+  // Admin panel
   if (window.location.hash === "#admin316") {
     document.getElementById("admin316").style.display = "block";
   }
 
-  // Ver ganador guardado
+  // Ver ganador
   const ganadorRef = db.collection("ganador").doc("actual");
   const doc = await ganadorRef.get();
 
@@ -95,6 +109,7 @@ window.addEventListener("load", async () => {
   }
 
 });
+
 
 
 // ================================
