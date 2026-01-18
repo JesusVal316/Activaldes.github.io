@@ -1,27 +1,13 @@
+// ================================
+// 🔐 DEVICE ID (Fingerprint)
+// ================================
 
 let deviceID = null;
 
-window.addEventListener("load", () => {
 
-  const btn = document.getElementById("btnParticipar");
-  btn.disabled = true;
-
-  FingerprintJS.load().then(fp => {
-    fp.get().then(result => {
-
-      deviceID = result.visitorId;
-      btn.disabled = false;
-
-      console.log("DeviceID listo:", deviceID);
-
-    });
-  });
-
-});
-
-
-// CONFIG TUYA
-
+// ================================
+// 🔥 FIREBASE CONFIG
+// ================================
 
 const firebaseConfig = {
   apiKey: "AIzaSyDJ2G3OYOGGn5XEINJiCmoN6UHocXfDJD8",
@@ -39,25 +25,32 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 
+// ================================
 // ⏳ FECHA FIN SORTEO
+// ================================
+
 const fechaFin = new Date("2026-01-31T23:59:59").getTime();
 
 
-// CONTADOR
-setInterval(() => {
+// ================================
+// ⏱ CONTADOR OPTIMIZADO
+// ================================
+
+const intervalo = setInterval(() => {
 
   const ahora = new Date().getTime();
   const diff = fechaFin - ahora;
 
   if (diff <= 0) {
-  document.getElementById("contador").innerHTML = "🎉 Sorteo finalizado";
-  document.getElementById("btnParticipar").disabled = true;
-document.getElementById("btnParticipar").innerText = "Sorteo cerrado";
 
-  obtenerGanador();
-  return;
-}
+    document.getElementById("contador").innerHTML = "🎉 Sorteo finalizado";
+    document.getElementById("btnParticipar").disabled = true;
+    document.getElementById("btnParticipar").innerText = "Sorteo cerrado";
 
+    clearInterval(intervalo);
+    obtenerGanador();
+    return;
+  }
 
   const d = Math.floor(diff / (1000 * 60 * 60 * 24));
   const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -70,26 +63,59 @@ document.getElementById("btnParticipar").innerText = "Sorteo cerrado";
 }, 1000);
 
 
-// PARTICIPAR
+// ================================
+// 🚀 LOAD PRINCIPAL
+// ================================
+
+window.addEventListener("load", async () => {
+
+  const btn = document.getElementById("btnParticipar");
+  btn.disabled = true;
+
+  // Fingerprint load
+  const fp = await FingerprintJS.load();
+  const result = await fp.get();
+  deviceID = result.visitorId;
+
+  console.log("DeviceID listo:", deviceID);
+
+  btn.disabled = false;
+
+  // Panel admin
+  if (window.location.hash === "#admin316") {
+    document.getElementById("admin316").style.display = "block";
+  }
+
+  // Ver ganador guardado
+  const ganadorRef = db.collection("ganador").doc("actual");
+  const doc = await ganadorRef.get();
+
+  if (doc.exists) {
+    document.getElementById("ganador").innerHTML = doc.data().nombre;
+  }
+
+});
+
+
+// ================================
+// 🎟 PARTICIPAR SORTEO
+// ================================
+
 async function participarSorteo() {
 
   const btn = document.getElementById("btnParticipar");
   btn.disabled = true;
 
   const nombre = document.getElementById("nombreInput").value.trim();
-  const whatsapp = document.getElementById("whatsappInput").value.trim();
+
+  const whatsapp = document.getElementById("whatsappInput")
+    .value.replace(/\D/g, "");
+
   const msg = document.getElementById("mensajeSorteo");
 
   // Esperar fingerprint
   if (!deviceID) {
-    msg.innerHTML = "⏳ Espera un segundo...";
-    btn.disabled = false;
-    return;
-  }
-
-  // Ya participó
-  if (localStorage.getItem("yaParticipaste")) {
-    msg.innerHTML = "⚠ Ya participaste desde este dispositivo";
+    msg.innerHTML = "⏳ Cargando seguridad, intenta de nuevo...";
     msg.style.color = "orange";
     btn.disabled = false;
     return;
@@ -103,21 +129,29 @@ async function participarSorteo() {
     return;
   }
 
-  // Teléfono inválido
+  // Validar WhatsApp MX
   if (!/^[0-9]{10}$/.test(whatsapp)) {
-    msg.innerHTML = "❌ Ingresa un WhatsApp válido (10 dígitos)";
+    msg.innerHTML = "❌ WhatsApp inválido (10 dígitos)";
     msg.style.color = "red";
     btn.disabled = false;
     return;
   }
 
-  // Validar dispositivo duplicado
+  // LocalStorage protección
+  if (localStorage.getItem("yaParticipaste")) {
+    msg.innerHTML = "⚠ Ya participaste desde este dispositivo";
+    msg.style.color = "orange";
+    btn.disabled = false;
+    return;
+  }
+
+  // Firebase protección por deviceID
   const existe = await db.collection("participantes")
     .where("deviceID", "==", deviceID)
     .get();
 
   if (!existe.empty) {
-    msg.innerHTML = "⚠ Ya participaste desde este dispositivo";
+    msg.innerHTML = "⚠ Este dispositivo ya participó";
     msg.style.color = "orange";
     localStorage.setItem("yaParticipaste", "true");
     btn.disabled = false;
@@ -134,7 +168,7 @@ async function participarSorteo() {
 
   localStorage.setItem("yaParticipaste", "true");
 
-  msg.innerHTML = "✅ Participación registrada";
+  msg.innerHTML = "✅ Participación registrada correctamente";
   msg.style.color = "#25D366";
 
   document.getElementById("nombreInput").value = "";
@@ -143,19 +177,17 @@ async function participarSorteo() {
 }
 
 
+// ================================
+// 🏆 GANADOR GLOBAL
+// ================================
 
-
-
-// GANADOR AUTOMÁTICO GLOBAL
 async function obtenerGanador() {
 
   const ganadorRef = db.collection("ganador").doc("actual");
   const yaExiste = await ganadorRef.get();
 
-  // Si ya existe ganador no vuelve a sortear
   if (yaExiste.exists) {
-    const data = yaExiste.data();
-    document.getElementById("ganador").innerHTML = data.nombre;
+    document.getElementById("ganador").innerHTML = yaExiste.data().nombre;
     return;
   }
 
@@ -178,7 +210,6 @@ async function obtenerGanador() {
   const random = Math.floor(Math.random() * lista.length);
   const ganador = lista[random];
 
-  // Guardar ganador definitivo
   await ganadorRef.set({
     id: ganador.id,
     nombre: ganador.nombre,
@@ -187,8 +218,13 @@ async function obtenerGanador() {
   });
 
   document.getElementById("ganador").innerHTML = ganador.nombre;
+
 }
 
+
+// ================================
+// 🔎 ADMIN VER GANADOR
+// ================================
 
 async function verGanadorAdmin() {
 
@@ -205,24 +241,5 @@ async function verGanadorAdmin() {
 `ID: ${data.id}
 Nombre: ${data.nombre}
 WhatsApp: ${data.whatsapp}`;
+
 }
-
-
-window.addEventListener("load", async () => {
-
-  if (window.location.hash === "#admin316") {
-    document.getElementById("admin316").style.display = "block";
-  }
-
-  // Ver si ya hay ganador guardado
-  const ganadorRef = db.collection("ganador").doc("actual");
-  const doc = await ganadorRef.get();
-
-  if (doc.exists) {
-    document.getElementById("ganador").innerHTML = doc.data().nombre;
-  }
-
-});
-
-
-
