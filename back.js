@@ -18,37 +18,37 @@ const firebaseConfig = {
   appId: "1:180448055243:web:629bb44ca3aef30848b04e"
 };
 
-// INIT FIREBASE
 firebase.initializeApp(firebaseConfig);
-
-// DB
 const db = firebase.firestore();
 
 
-// ================================
-// ⏳ FECHA FIN SORTEO
-// ================================
-
-const fechaFin = new Date("2026-01-31T23:59:59").getTime();
-
 
 // ================================
-// ⏱ CONTADOR OPTIMIZADO
+// 📅 CLAVE MES ACTUAL
 // ================================
+
+function obtenerClaveMes(fecha = new Date()) {
+  return `${fecha.getFullYear()}-${fecha.getMonth() + 1}`;
+}
+
+
+// ================================
+// ⏳ CONTADOR DINÁMICO FIN DE MES
+// ================================
+
+function fechaFinMes() {
+  const ahora = new Date();
+  return new Date(ahora.getFullYear(), ahora.getMonth() + 1, 1).getTime();
+}
 
 const intervalo = setInterval(() => {
 
   const ahora = new Date().getTime();
-  const diff = fechaFin - ahora;
+  const diff = fechaFinMes() - ahora;
 
   if (diff <= 0) {
-
     document.getElementById("contador").innerHTML = "🎉 Sorteo finalizado";
-    document.getElementById("btnParticipar").disabled = true;
-    document.getElementById("btnParticipar").innerText = "Sorteo cerrado";
-
     clearInterval(intervalo);
-    obtenerGanador();
     return;
   }
 
@@ -66,54 +66,39 @@ const intervalo = setInterval(() => {
 // ================================
 // 🚀 LOAD PRINCIPAL
 // ================================
+
 window.addEventListener("load", async () => {
 
   const btn = document.getElementById("btnParticipar");
   btn.disabled = true;
 
   try {
-
     const fp = await FingerprintJS.load();
     const result = await fp.get();
     deviceID = result.visitorId;
-
-    console.log("Fingerprint OK:", deviceID);
-
   } catch (error) {
 
-    console.warn("Fingerprint falló, usando fallback");
-
-    // Fallback local
     deviceID = localStorage.getItem("deviceFallback");
 
     if (!deviceID) {
       deviceID = "fallback_" + crypto.randomUUID();
       localStorage.setItem("deviceFallback", deviceID);
     }
-
   }
 
   btn.disabled = false;
 
-  // Admin panel
   if (window.location.hash === "#admin316") {
     document.getElementById("admin316").style.display = "block";
   }
 
-  // Ver ganador
-  const ganadorRef = db.collection("ganador").doc("actual");
-  const doc = await ganadorRef.get();
-
-  if (doc.exists) {
-    document.getElementById("ganador").innerHTML = doc.data().nombre;
-  }
+  mostrarGanador();
 
 });
 
 
-
 // ================================
-// 🎟 PARTICIPAR SORTEO
+// 🎟 PARTICIPAR SORTEO (POR MES)
 // ================================
 
 async function participarSorteo() {
@@ -122,21 +107,16 @@ async function participarSorteo() {
   btn.disabled = true;
 
   const nombre = document.getElementById("nombreInput").value.trim();
-
-  const whatsapp = document.getElementById("whatsappInput")
-    .value.replace(/\D/g, "");
-
+  const whatsapp = document.getElementById("whatsappInput").value.replace(/\D/g, "");
   const msg = document.getElementById("mensajeSorteo");
 
-  // Esperar fingerprint
   if (!deviceID) {
-    msg.innerHTML = "⏳ Cargando seguridad, intenta de nuevo...";
+    msg.innerHTML = "⏳ Cargando seguridad...";
     msg.style.color = "orange";
     btn.disabled = false;
     return;
   }
 
-  // Campos vacíos
   if (nombre === "" || whatsapp === "") {
     msg.innerHTML = "❌ Completa todos los campos";
     msg.style.color = "red";
@@ -144,108 +124,95 @@ async function participarSorteo() {
     return;
   }
 
-  // Validar WhatsApp MX
   if (!/^[0-9]{10}$/.test(whatsapp)) {
-    msg.innerHTML = "❌ WhatsApp inválido (10 dígitos)";
+    msg.innerHTML = "❌ WhatsApp inválido";
     msg.style.color = "red";
     btn.disabled = false;
     return;
   }
 
-  // LocalStorage protección
-  if (localStorage.getItem("yaParticipaste")) {
-    msg.innerHTML = "⚠ Ya participaste desde este dispositivo";
-    msg.style.color = "orange";
-    btn.disabled = false;
-    return;
-  }
+  const clave = obtenerClaveMes();
+  const participantesRef = db.collection("sorteos")
+    .doc(clave)
+    .collection("participantes");
 
-  // Firebase protección por deviceID
-  const existe = await db.collection("participantes")
+  const existe = await participantesRef
     .where("deviceID", "==", deviceID)
     .get();
 
   if (!existe.empty) {
-    msg.innerHTML = "⚠ Este dispositivo ya participó";
+    msg.innerHTML = "⚠ Este dispositivo ya participó este mes";
     msg.style.color = "orange";
-    localStorage.setItem("yaParticipaste", "true");
     btn.disabled = false;
     return;
   }
 
-  // Guardar participante
-  await db.collection("participantes").add({
+  await participantesRef.add({
     nombre,
     whatsapp,
     deviceID,
     fecha: firebase.firestore.FieldValue.serverTimestamp()
   });
 
-  localStorage.setItem("yaParticipaste", "true");
-
-  msg.innerHTML = "✅ Participación registrada correctamente";
+  msg.innerHTML = "✅ Participación registrada";
   msg.style.color = "#25D366";
 
   document.getElementById("nombreInput").value = "";
   document.getElementById("whatsappInput").value = "";
 
+  btn.disabled = false;
 }
 
 
 // ================================
-// 🏆 GANADOR GLOBAL
+// 🏆 MOSTRAR GANADOR (1-5 DEL MES)
 // ================================
 
-async function obtenerGanador() {
+async function mostrarGanador() {
 
-  const ganadorRef = db.collection("ganador").doc("actual");
-  const yaExiste = await ganadorRef.get();
+  const ahora = new Date();
+  const dia = ahora.getDate();
 
-  if (yaExiste.exists) {
-    document.getElementById("ganador").innerHTML = yaExiste.data().nombre;
+  const claveMesAnterior = obtenerClaveMes(
+    new Date(ahora.getFullYear(), ahora.getMonth() - 1, 1)
+  );
+
+  const ganadorEl = document.getElementById("ganador");
+
+  if (dia > 5) {
+    ganadorEl.innerHTML = "Aún no definido";
     return;
   }
 
-  const snap = await db.collection("participantes").get();
+  const doc = await db.collection("sorteos")
+    .doc(claveMesAnterior)
+    .get();
 
-  if (snap.empty) {
-    document.getElementById("ganador").innerHTML = "Sin participantes";
-    return;
+  if (doc.exists && doc.data().ganador) {
+    ganadorEl.innerHTML = doc.data().ganador;
+  } else {
+    ganadorEl.innerHTML = "Aún no definido";
   }
-
-  let lista = [];
-
-  snap.forEach(doc => {
-    lista.push({
-      id: doc.id,
-      ...doc.data()
-    });
-  });
-
-  const random = Math.floor(Math.random() * lista.length);
-  const ganador = lista[random];
-
-  await ganadorRef.set({
-    id: ganador.id,
-    nombre: ganador.nombre,
-    whatsapp: ganador.whatsapp,
-    fecha: firebase.firestore.FieldValue.serverTimestamp()
-  });
-
-  document.getElementById("ganador").innerHTML = ganador.nombre;
-
 }
 
 
 // ================================
-// 🔎 ADMIN VER GANADOR
+// 🔎 ADMIN VER GANADOR DEL MES ANTERIOR
 // ================================
 
 async function verGanadorAdmin() {
 
-  const doc = await db.collection("ganador").doc("actual").get();
+  const ahora = new Date();
 
-  if (!doc.exists) {
+  const claveMesAnterior = obtenerClaveMes(
+    new Date(ahora.getFullYear(), ahora.getMonth() - 1, 1)
+  );
+
+  const doc = await db.collection("sorteos")
+    .doc(claveMesAnterior)
+    .get();
+
+  if (!doc.exists || !doc.data().ganador) {
     alert("Aún no hay ganador");
     return;
   }
@@ -253,8 +220,21 @@ async function verGanadorAdmin() {
   const data = doc.data();
 
   document.getElementById("adminData").innerText =
-`ID: ${data.id}
-Nombre: ${data.nombre}
+`Nombre: ${data.ganador}
 WhatsApp: ${data.whatsapp}`;
-
 }
+// ================================
+// 📅 MOSTRAR MES ACTUAL EN TÍTULO
+// ================================
+
+function obtenerNombreMes(fecha = new Date()) {
+  const meses = [
+    "ENERO", "FEBRERO", "MARZO", "ABRIL",
+    "MAYO", "JUNIO", "JULIO", "AGOSTO",
+    "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"
+  ];
+  return meses[fecha.getMonth()];
+}
+
+const titulo = document.getElementById("tituloSorteo");
+titulo.innerHTML = `SORTEO DE ${obtenerNombreMes()} 🎁`;
